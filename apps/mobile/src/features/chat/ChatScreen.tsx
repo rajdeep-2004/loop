@@ -7,6 +7,7 @@ import { isReadByAll, mergeOutbox } from './cache';
 import { useConversation, useMarkRead, useMessages } from './hooks';
 import { MessageBubble } from './MessageBubble';
 import { useOutbox } from './outbox';
+import type { ReactionEmoji } from '@campus/shared';
 import type { ChatMessage } from './types';
 
 type Props = {
@@ -14,11 +15,12 @@ type Props = {
   onRetry: (message: ChatMessage) => void;
   onLongPress?: (message: ChatMessage) => void;
   onOpenThread?: (message: ChatMessage) => void;
+  onReact?: (message: ChatMessage, emoji: ReactionEmoji) => void;
   renderAttachment?: (message: ChatMessage) => React.ReactNode;
 };
 
 /** The scrolling message list of one conversation, newest at the bottom. */
-export function MessageList({ conversationId, onRetry, onLongPress, onOpenThread, renderAttachment }: Props) {
+export function MessageList({ conversationId, onRetry, onLongPress, onOpenThread, onReact, renderAttachment }: Props) {
   const me = useMe();
   const detail = useConversation(conversationId);
   const messages = useMessages(conversationId);
@@ -51,6 +53,8 @@ export function MessageList({ conversationId, onRetry, onLongPress, onOpenThread
               receipt={isDm && item.id === newestMine?.id ? (isReadByAll(detail.data, item.id) ? 'Read' : 'Sent') : null}
               onRetry={onRetry}
               onLongPress={onLongPress}
+              onReact={item.status ? undefined : onReact}
+              myId={me.id}
               onOpenThread={onOpenThread}>
               {renderAttachment?.(item)}
             </MessageBubble>

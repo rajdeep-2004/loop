@@ -5,7 +5,12 @@ import { LIMITS } from '@campus/shared';
 import { BORDER, Button, Txt, colors, fonts, space } from '@/ui';
 
 type Props = {
-  onSend: (body: string) => void;
+  /**
+   * Called with the trimmed text. Return nothing to clear the field at once (a new message goes
+   * to the outbox). Return a promise to keep the text and show a spinner until it settles; the
+   * field is cleared only if it resolves to true (saving an edit).
+   */
+  onSend: (body: string) => void | Promise<boolean>;
   onTyping?: () => void;
   onStoppedTyping?: () => void;
   /** Text shown above the input while replying to or editing a message. */
@@ -22,11 +27,21 @@ export function Composer({ onSend, onTyping, onStoppedTyping, banner, initialTex
   const [text, setText] = useState(initialText);
   const trimmed = text.trim();
 
+  const [busy, setBusy] = useState(false);
+
   const submit = () => {
-    if (!trimmed) return;
-    onSend(trimmed);
-    setText('');
+    if (!trimmed || busy) return;
+    const result = onSend(trimmed);
     onStoppedTyping?.();
+    if (!result) {
+      setText('');
+      return;
+    }
+    setBusy(true);
+    void result
+      .then((saved) => saved && setText(''))
+      .catch(() => undefined)
+      .finally(() => setBusy(false));
   };
 
   return (
@@ -58,9 +73,10 @@ export function Composer({ onSend, onTyping, onStoppedTyping, banner, initialTex
           accessibilityLabel={placeholder}
           multiline
           maxLength={LIMITS.messageMax}
+          editable={!busy}
           style={styles.input}
         />
-        <Button label={sendLabel} onPress={submit} disabled={!trimmed} />
+        <Button label={sendLabel} onPress={submit} disabled={!trimmed} loading={busy} />
       </View>
     </View>
   );

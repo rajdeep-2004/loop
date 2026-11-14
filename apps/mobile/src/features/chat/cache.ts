@@ -1,5 +1,5 @@
-import type { InfiniteData } from '@tanstack/react-query';
-import type { ConversationDetail, Message, Page } from '@campus/shared';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
+import type { ConversationDetail, Message, Page, ReactionEmoji } from '@campus/shared';
 import type { ChatMessage } from './types';
 
 export type MessagePages = InfiniteData<Page<Message>, unknown>;
@@ -31,6 +31,41 @@ export function replaceMessage(data: MessagePages | undefined, message: Message)
       data: page.data.map((item) => (item.id === message.id ? message : item)),
     })),
   };
+}
+
+/** Writes a newer copy of a message into every cached list that can hold it (the chat and its thread). */
+export function storeMessageUpdate(queryClient: QueryClient, message: Message): void {
+  queryClient.setQueryData<MessagePages>(chatKeys.messages(message.conversationId), (data) => replaceMessage(data, message));
+  if (message.threadRootId) {
+    queryClient.setQueryData<MessagePages>(chatKeys.thread(message.conversationId, message.threadRootId), (data) =>
+      replaceMessage(data, message),
+    );
+  }
+}
+
+/** The emoji this user has put on the message, or null. */
+export function myReaction(message: Message, userId: string): string | null {
+  return message.reactions.find((reaction) => reaction.userIds.includes(userId))?.emoji ?? null;
+}
+
+/** What a tap on an emoji means: tapping my current reaction removes it, anything else selects it. */
+export function nextReaction(message: Message, userId: string, emoji: ReactionEmoji): ReactionEmoji | null {
+  return myReaction(message, userId) === emoji ? null : emoji;
+}
+
+/**
+ * The message as it will look once the server applies the change: the user is taken out of
+ * every reaction, empty groups go, and the user joins `emoji` (null = no reaction). Pure.
+ */
+export function applyReaction(message: Message, userId: string, emoji: ReactionEmoji | null): Message {
+  const others = message.reactions
+    .map((reaction) => ({ ...reaction, userIds: reaction.userIds.filter((id) => id !== userId) }))
+    .filter((reaction) => reaction.userIds.length > 0);
+  if (emoji === null) return { ...message, reactions: others };
+  const reactions = others.some((reaction) => reaction.emoji === emoji)
+    ? others.map((reaction) => (reaction.emoji === emoji ? { ...reaction, userIds: [...reaction.userIds, userId] } : reaction))
+    : [...others, { emoji, userIds: [userId] }];
+  return { ...message, reactions };
 }
 
 /** Newest first: messages still being sent, then everything the server has confirmed. */

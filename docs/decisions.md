@@ -318,16 +318,27 @@ F-04 says a sender can edit and delete their own messages and any member can rep
 **How it works**
 Every action starts with `requireMessage`, which loads the message and checks that the caller is a member of its conversation. Edit and delete then check the sender. The write itself repeats the important condition in its filter (`deletedAt: null`), so a delete that lands between the check and the write wins and the edit is refused instead of bringing the text back. The preview update uses the same idea: it only matches the conversation while `lastMessageAt` still equals this message's creation time, so it can never overwrite the preview of a newer message.
 
+**On the phone**
+- A long press on a message opens a bottom sheet (`MessageActionSheet`): a row of the six reactions, Reply, and for my own messages Edit and Delete. Delete asks once more inside the same sheet ("Delete this message for everyone?") and shows a spinner while the request runs, so it cannot be sent twice. The sheet stays open if the delete fails.
+- Reply and edit reuse the composer. A yellow banner above the input says "Replying to …" or "Editing message" and has a cancel button. In edit mode the input starts with the old text, the button reads "Save", and the text is kept if saving fails.
+- Reaction chips under a bubble are tappable: tap someone's reaction to add the same one, tap your own (yellow) to remove it.
+- **Reactions are optimistic, edit and delete are not.** A reaction shows the moment it is tapped and is undone with an alert if the server refuses. Edit and delete wait for the server, because showing a message as deleted and then bringing it back would be worse than a short spinner.
+- `ChatRoom` now holds the message list, composer and sheet together, so group and club chats (M4, M5) get message actions by rendering the same component.
+- Failures are shown with the system alert (`Alert.alert`). The app has no toast component yet and one was not worth adding for this.
+
 **Files touched**
 - `packages/shared/src/chat.ts` (`REACTION_EMOJIS`, `reactInput`)
 - `apps/api/src/modules/messages/messageActions.service.ts`, `messages.routes.ts`, `messages.service.ts`, `apps/api/src/app.ts`
 - `apps/api/tests/messageActions.test.ts`
+- `apps/mobile/src/features/chat/ChatRoom.tsx`, `MessageActionSheet.tsx`, `useMessageActions.ts`, `cache.ts`, `Composer.tsx`, `MessageBubble.tsx`, `ChatScreen.tsx`
+- `apps/mobile/src/app/chat/[id].tsx`, `apps/mobile/src/lib/api.ts`, `apps/mobile/src/__tests__/messageActions.test.tsx`
 
 **Concepts worth learning**
 - Idempotent: an operation that gives the same result whether it runs once or many times. `PUT` and `DELETE` are meant to be idempotent; a toggle is not.
 - Update pipeline: an update written as aggregation stages, which can compute the new value from the old one inside the database, in one atomic step.
 - Guarded write: putting the condition you checked into the update's filter, so the check and the write cannot be separated by another request.
 - Soft delete: marking a record as deleted instead of removing it, so things that refer to it keep working.
+- Optimistic update: showing the result of an action before the server confirms it, and undoing it if the server says no.
 
 **Revisit if**
 Attachments ship (M8): deleting a message must also remove its files from disk. Threads ship (M8): confirm the deleted-root behaviour in the thread screen.

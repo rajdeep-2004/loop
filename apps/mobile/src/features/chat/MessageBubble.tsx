@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { formatTime } from '@/lib/time';
 import { BORDER, Txt, colors, space } from '@/ui';
+import type { ReactionEmoji } from '@campus/shared';
 import type { ChatMessage } from './types';
 
 type Props = {
@@ -13,6 +14,9 @@ type Props = {
   onLongPress?: (message: ChatMessage) => void;
   onRetry?: (message: ChatMessage) => void;
   onOpenThread?: (message: ChatMessage) => void;
+  /** With `myId`, makes the reaction chips tappable: tap to add the same reaction or remove mine. */
+  onReact?: (message: ChatMessage, emoji: ReactionEmoji) => void;
+  myId?: string;
   children?: React.ReactNode;
 };
 
@@ -22,7 +26,7 @@ export function footerText(message: ChatMessage, receipt?: string | null): strin
   return [formatTime(message.createdAt), message.edited ? 'Edited' : null, receipt].filter(Boolean).join(' · ');
 }
 
-export function MessageBubble({ message, mine, showSender = false, receipt, onLongPress, onRetry, onOpenThread, children }: Props) {
+export function MessageBubble({ message, mine, showSender = false, receipt, onLongPress, onRetry, onOpenThread, onReact, myId, children }: Props) {
   const failed = message.status === 'failed';
   const background = message.deleted ? colors.paper : failed ? colors.red : mine ? colors.mint : colors.white;
 
@@ -60,13 +64,24 @@ export function MessageBubble({ message, mine, showSender = false, receipt, onLo
 
       {message.reactions.length > 0 ? (
         <View style={styles.reactions}>
-          {message.reactions.map((reaction) => (
-            <View key={reaction.emoji} style={styles.reaction}>
-              <Txt variant="small">
-                {reaction.emoji} {reaction.userIds.length}
-              </Txt>
-            </View>
-          ))}
+          {message.reactions.map((reaction) => {
+            const byMe = myId !== undefined && reaction.userIds.includes(myId);
+            return (
+              <Pressable
+                key={reaction.emoji}
+                onPress={onReact ? () => onReact(message, reaction.emoji as ReactionEmoji) : undefined}
+                disabled={!onReact}
+                hitSlop={8}
+                accessibilityRole={onReact ? 'button' : undefined}
+                accessibilityLabel={`${reaction.emoji} ${reaction.userIds.length}${onReact ? (byMe ? ', remove your reaction' : ', react too') : ''}`}
+                accessibilityState={onReact ? { selected: byMe } : undefined}
+                style={[styles.reaction, byMe && styles.reactionMine]}>
+                <Txt variant="small">
+                  {reaction.emoji} {reaction.userIds.length}
+                </Txt>
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
 
@@ -89,6 +104,7 @@ const styles = StyleSheet.create({
   quote: { borderLeftWidth: 4, borderLeftColor: colors.ink, paddingLeft: space.sm, backgroundColor: colors.paper, padding: space.xs },
   deleted: { fontStyle: 'italic' },
   reactions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  reaction: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.yellow, paddingHorizontal: space.sm, paddingVertical: 2 },
+  reaction: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.white, paddingHorizontal: space.sm, paddingVertical: 2 },
+  reactionMine: { backgroundColor: colors.yellow },
   thread: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.white, paddingHorizontal: space.sm, paddingVertical: space.xs },
 });

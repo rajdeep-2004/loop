@@ -104,6 +104,8 @@ export const api = {
   post: <T>(path: string, body?: unknown, auth = true) => unwrap(request<{ data: T }>('POST', path, { body: body ?? {}, auth })),
   put: <T>(path: string, body: unknown) => unwrap(request<{ data: T }>('PUT', path, { body })),
   patch: <T>(path: string, body: unknown) => unwrap(request<{ data: T }>('PATCH', path, { body })),
+  /** DELETE that returns the changed resource (for example a message after its reaction was removed). */
+  remove: <T>(path: string) => unwrap(request<{ data: T }>('DELETE', path)),
   delete: (path: string, body?: unknown) => request<void>('DELETE', path, body === undefined ? {} : { body }),
   postVoid: (path: string, body: unknown, auth = true) => request<void>('POST', path, { body, auth }),
   upload: <T>(path: string, form: FormData) => unwrap(request<{ data: T }>('POST', path, { form })),

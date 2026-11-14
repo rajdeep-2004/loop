@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, type ReactNode } from 'react';
 import type { ConversationDetail } from '@campus/shared';
 import { useAuth } from '@/features/auth/AuthContext';
-import { addMessage, applyRead, chatKeys, replaceMessage, type MessagePages } from '@/features/chat/cache';
+import { addMessage, applyRead, chatKeys, storeMessageUpdate, type MessagePages } from '@/features/chat/cache';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
 import { setPresence, setTyping } from './liveState';
 
@@ -36,14 +36,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData<MessagePages>(key, (data) => addMessage(data, message));
       if (!message.threadRootId) refreshLists();
     });
-    socket.on('message:updated', (message) => {
-      queryClient.setQueryData<MessagePages>(chatKeys.messages(message.conversationId), (data) => replaceMessage(data, message));
-      if (message.threadRootId) {
-        queryClient.setQueryData<MessagePages>(chatKeys.thread(message.conversationId, message.threadRootId), (data) =>
-          replaceMessage(data, message),
-        );
-      }
-    });
+    socket.on('message:updated', (message) => storeMessageUpdate(queryClient, message));
     socket.on('conversation:read', (event) => {
       queryClient.setQueryData<ConversationDetail>(chatKeys.conversation(event.conversationId), (detail) => applyRead(detail, event));
     });

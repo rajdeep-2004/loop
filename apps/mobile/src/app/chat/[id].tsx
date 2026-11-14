@@ -1,8 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable } from 'react-native';
-import { MessageList } from '@/features/chat/ChatScreen';
-import { Composer } from '@/features/chat/Composer';
-import { useConversation, useSendMessage, useTypingSignal } from '@/features/chat/hooks';
+import { ChatRoom } from '@/features/chat/ChatRoom';
+import { useConversation } from '@/features/chat/hooks';
 import { useOnline } from '@/features/realtime/liveState';
 import { errorMessage } from '@/lib/api';
 import { ErrorState, Screen, Tag, TopBar, colors } from '@/ui';
@@ -10,8 +9,6 @@ import { ErrorState, Screen, Tag, TopBar, colors } from '@/ui';
 export default function Chat() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const conversation = useConversation(id);
-  const { send, resend } = useSendMessage(id);
-  const { typing, stopped } = useTypingSignal(id);
   const peer = conversation.data?.peer;
   const online = useOnline(peer?.id, peer?.online);
 
@@ -34,8 +31,7 @@ export default function Chat() {
           right={online ? <Tag label="Online" color={colors.mint} /> : null}
         />
       </Pressable>
-      <MessageList conversationId={id} onRetry={resend} />
-      <Composer onSend={(body) => send({ body })} onTyping={typing} onStoppedTyping={stopped} />
+      <ChatRoom conversationId={id} />
     </Screen>
   );
 }
