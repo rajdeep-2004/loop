@@ -20,6 +20,7 @@ Rules:
 | D-004 | 2026-11-15 | Workflow | Unattended overnight build: phases merged to main without approval stops | Active |
 | D-005 | 2026-11-15 | M1 | Refresh tokens stored hashed and rotated | Active |
 | D-006 | 2026-11-15 | M1 | M1 build notes: workspace, name search field, upload checks, mobile test setup | Active |
+| D-007 | 2026-11-15 | M2 | Direct messaging: delivery, unread counts, read markers, outbox | Active |
 
 ---
 
@@ -237,3 +238,47 @@ Tests run against a real local MongoDB database named `campus_test`. Each test f
 
 **Revisit if**
 Node is upgraded to 22+ (switch the mobile lint script back to `expo lint`).
+
+---
+
+### D-007 — Direct messaging: delivery, unread counts, read markers, outbox
+- **Date:** 2026-11-15
+- **Step / milestone:** M2 — Direct messaging
+- **Status:** Active
+- **Type:** architecture | data | edge-case
+
+**Context**
+M2 delivered one-to-one chat: conversation list, realtime text, history paging, sent/read status, presence and typing. People search was pulled forward from M7 because a student needs a way to find someone to message.
+
+**Decision**
+1. **One DM per pair.** `dmKey` is the two user ids sorted and joined. A partial unique index (only where `type` is `dm`) lets one insert win when both students open the chat at the same moment; the loser reads the winner's row. Member rows are upserts, so a half-finished attempt repairs itself.
+2. **Idempotent sends.** The app generates a `clientMessageId`. A unique index on (sender, clientMessageId) turns a retry into "return the message already saved". Tested with three identical sends fired at once: one message, unread count 1.
+3. **Delivery through personal rooms.** Each socket joins `user:<id>`. To deliver, the server reads the conversation's members and emits to their rooms. A student who was already connected receives the first message of a brand-new DM with no reconnect.
+4. **Unread counts are stored, not counted.** Each member row has `unreadCount`, raised with an atomic `$inc` for everyone except the sender. The chat list reads it directly. Marking as read moves the marker forward only (a conditional update) and then recounts messages after the marker, so a message that arrives during the call stays unread.
+5. **Empty DMs are hidden.** Opening a profile and tapping Message creates the DM, but it appears in both chat lists only after the first message (its sort date starts at 1970).
+6. **Outbox on the phone.** A message being sent lives in a small local store, not in the server cache, and is shown as "Sending". On failure it turns red with "Tap to retry", and the retry reuses the same `clientMessageId`. The socket is tried first with an 8 second acknowledgement timeout, then plain HTTP.
+7. **Presence** goes to students who share a DM with the person, and is also included in API responses. It is counted per user across devices, so closing one of two phones does not show the person offline.
+8. **Typing** is sent at most once every 3 seconds per chat and expires on the receiver after 5 seconds if no "stopped" arrives. The server limits typing and message events per user per 10 seconds.
+9. **Socket tokens** are checked at the handshake only. An expired token is refused with `auth_expired`; the app refreshes and reconnects.
+
+**Alternatives considered**
+| Option | Why not chosen |
+|---|---|
+| Socket.IO room per conversation | Rooms would have to be kept in step with joins and leaves; the spec review showed this breaks the "join a club then chat" flow |
+| Count unread messages with a query per chat | One count query per row of the chat list |
+| Optimistic message inside the React Query cache | A refetch would wipe unsent messages |
+
+**How it works**
+Send: app adds the message to the outbox, emits `message:send`, server checks membership, inserts, updates the conversation preview and unread counters, emits `message:new` to every member, and acknowledges the sender. The app's realtime provider puts `message:new` into the message cache; the outbox entry disappears because a confirmed message with the same `clientMessageId` now exists.
+
+**Files touched**
+- `apps/api/src/modules/conversations/*`, `apps/api/src/modules/messages/*`, `apps/api/src/realtime/*`
+- `apps/mobile/src/features/chat/*`, `apps/mobile/src/features/realtime/*`, `apps/mobile/src/lib/socket.ts`
+
+**Concepts worth learning**
+- Atomic update (`$inc`): the database changes the number itself, so two simultaneous messages cannot overwrite each other's count.
+- Acknowledgement: a Socket.IO callback the server calls to confirm it handled an event.
+- `useSyncExternalStore`: React's hook for reading state that lives outside React, used here for the outbox, typing and presence.
+
+**Revisit if**
+Group chats grow large (the per-message member lookup and `updateMany` become the first bottleneck), or the API runs as more than one process (presence and rate limits must move to Redis).

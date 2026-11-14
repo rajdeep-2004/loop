@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/features/auth/AuthContext';
+import { RealtimeProvider } from '@/features/realtime/RealtimeProvider';
 import { queryClient } from '@/lib/queryClient';
 import { Loading, Screen, colors } from '@/ui';
 
@@ -26,8 +27,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <StatusBar style="dark" />
-          <RootNavigator />
+          <RealtimeProvider>
+            <StatusBar style="dark" />
+            <RootNavigator />
+          </RealtimeProvider>
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
@@ -58,6 +61,9 @@ function RootNavigator() {
       <Stack.Protected guard={onboarded}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="profile/edit" />
+        <Stack.Screen name="chat/[id]" />
+        <Stack.Screen name="user/[id]" />
+        <Stack.Screen name="people/new" />
       </Stack.Protected>
     </Stack>
   );
