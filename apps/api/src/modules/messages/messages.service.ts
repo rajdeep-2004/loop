@@ -18,7 +18,10 @@ export type NewMessage = {
   attachments: Attachment[];
 };
 
-function previewOf(message: MessageDoc): string {
+/** What the chat list shows when the newest message was deleted. */
+export const DELETED_PREVIEW = 'Message deleted';
+
+export function previewOf(message: MessageDoc): string {
   if (message.body) return message.body.slice(0, PREVIEW_LENGTH);
   return message.type === 'image' ? 'Photo' : `File: ${message.attachments[0]?.name ?? 'attachment'}`;
 }

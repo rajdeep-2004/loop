@@ -282,3 +282,52 @@ Send: app adds the message to the outbox, emits `message:send`, server checks me
 
 **Revisit if**
 Group chats grow large (the per-message member lookup and `updateMany` become the first bottleneck), or the API runs as more than one process (presence and rate limits must move to Redis).
+
+---
+
+### D-008 — Message actions: edit, delete, reactions and reply rules
+- **Date:** 2026-11-15
+- **Step / milestone:** M3 — Message actions
+- **Status:** Active
+- **Type:** product | architecture | edge-case
+
+**Context**
+F-04 says a sender can edit and delete their own messages and any member can reply and react. The design doc gave one line for this ("only the sender edits or deletes; delete is a soft delete that leaves a placeholder; a reaction is one emoji per user per message, toggled") and the spec review (R2-18) listed four cases it did not answer. Reply (`replyToId`) was already built and tested in M2, so M3 adds the three write actions on the server and the whole interaction on the phone. The rules below were chosen by Claude without asking, because each has an obvious default; change any of them and log it.
+
+**Decision**
+1. **Four endpoints, each safe to repeat.** `PATCH /messages/:id` (edit), `DELETE /messages/:id` (delete), `PUT /messages/:id/reaction` (set my reaction), `DELETE /messages/:id/reaction` (remove my reaction). All return the message in its new state and push `message:updated` to every member.
+2. **Reactions are "set" and "clear", not "toggle", on the server.** The app decides what a tap means (tap my current emoji = clear, tap another = set). A toggle endpoint does the opposite thing when a request is retried or a button is tapped twice; "set" and "clear" give the same result however often they run.
+3. **One reaction per member per message, from a fixed set of six** (`REACTION_EMOJIS` in `packages/shared`). Picking a second emoji replaces the first. A fixed set means the picker is one row, there is no emoji-keyboard dependency, and the server can validate the input against a list.
+4. **A reaction change is one atomic database statement.** It is an update pipeline: remove me from every group, drop groups that became empty, then add me to the chosen group (creating it if needed). Because MongoDB applies a pipeline update to a document in one step, two students reacting at the same moment cannot overwrite each other, and one student sending two different emoji at once still ends with exactly one.
+5. **No time limit on editing.** A message can be edited at any time and shows "Edited". Editing to the same text is a no-op and does not mark it edited. Only the text can change.
+6. **Delete erases the content.** The row stays (so the chat keeps its shape and replies still have something to point at) but the text and reactions are removed from the database, not only hidden by the API. A deleted message cannot be edited or reacted to (`409 message_deleted`). Deleting twice returns the same result.
+7. **A reply to a deleted message keeps its quote box**, which reads "Message deleted". **A deleted thread root** keeps its thread: the root shows the placeholder and the replies stay readable.
+8. **Who may do what.** Edit and delete: the sender only (`403` for another member). React: any member. A student outside the conversation gets `404` for every action, so the API does not reveal that the message exists.
+9. **The chat list preview follows the newest message.** If the newest message is edited or deleted, the preview text is rewritten ("Message deleted" for a delete) and members get `conversation:changed`. Older messages do not touch the preview.
+
+**Alternatives considered**
+| Option | Why not chosen |
+|---|---|
+| One `POST /reactions` toggle endpoint | Not safe to retry: a repeated request undoes the first |
+| `$pull` then `$addToSet` as two updates | Two requests from the same student can interleave and leave two reactions |
+| Any emoji allowed | Needs a picker library and length/shape validation of arbitrary unicode |
+| Several reactions per member (Slack style) | The design doc says one; one is also simpler to show |
+| Edit window (for example 15 minutes) | Adds a rule and a failure state with no benefit for a campus demo |
+| Keep the deleted text in the database | "Delete" that keeps the content is a privacy surprise |
+
+**How it works**
+Every action starts with `requireMessage`, which loads the message and checks that the caller is a member of its conversation. Edit and delete then check the sender. The write itself repeats the important condition in its filter (`deletedAt: null`), so a delete that lands between the check and the write wins and the edit is refused instead of bringing the text back. The preview update uses the same idea: it only matches the conversation while `lastMessageAt` still equals this message's creation time, so it can never overwrite the preview of a newer message.
+
+**Files touched**
+- `packages/shared/src/chat.ts` (`REACTION_EMOJIS`, `reactInput`)
+- `apps/api/src/modules/messages/messageActions.service.ts`, `messages.routes.ts`, `messages.service.ts`, `apps/api/src/app.ts`
+- `apps/api/tests/messageActions.test.ts`
+
+**Concepts worth learning**
+- Idempotent: an operation that gives the same result whether it runs once or many times. `PUT` and `DELETE` are meant to be idempotent; a toggle is not.
+- Update pipeline: an update written as aggregation stages, which can compute the new value from the old one inside the database, in one atomic step.
+- Guarded write: putting the condition you checked into the update's filter, so the check and the write cannot be separated by another request.
+- Soft delete: marking a record as deleted instead of removing it, so things that refer to it keep working.
+
+**Revisit if**
+Attachments ship (M8): deleting a message must also remove its files from disk. Threads ship (M8): confirm the deleted-root behaviour in the thread screen.

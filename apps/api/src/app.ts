@@ -8,6 +8,7 @@ import { config } from './config';
 import { AppError } from './lib/errors';
 import { authRoutes } from './modules/auth/auth.routes';
 import { conversationsRoutes } from './modules/conversations/conversations.routes';
+import { messagesRoutes } from './modules/messages/messages.routes';
 import { universityRoutes } from './modules/university/university.routes';
 import { uploadsRoutes } from './modules/uploads/uploads.routes';
 import { usersRoutes } from './modules/users/users.routes';
@@ -60,6 +61,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(universityRoutes);
       await api.register(uploadsRoutes);
       await api.register(conversationsRoutes);
+      await api.register(messagesRoutes);
     },
     { prefix: API_PREFIX },
   );

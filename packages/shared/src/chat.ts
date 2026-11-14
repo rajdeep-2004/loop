@@ -28,7 +28,10 @@ export const sendMessageInput = z
 export type SendMessageInput = z.input<typeof sendMessageInput>;
 
 export const editMessageInput = z.object({ body: z.string().trim().min(1).max(LIMITS.messageMax) });
-export const reactInput = z.object({ emoji: z.string().min(1).max(16) });
+/** The reactions a student can pick from. A fixed set keeps the picker to one row and the input easy to validate. */
+export const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'] as const;
+export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
+export const reactInput = z.object({ emoji: z.enum(REACTION_EMOJIS) });
 export const markReadInput = z.object({ messageId: objectId });
 export const messagesQuery = pageQuery.extend({ threadRootId: objectId.optional() });
 export const typingInput = z.object({ conversationId: objectId, typing: z.boolean() });
