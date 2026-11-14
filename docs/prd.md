@@ -83,7 +83,7 @@ announcements are discoverable and addressable through that structure.
 |---|---|---|---|---|
 | M1 | Foundation and identity (repo layout, design system, auth, onboarding, profile, image upload, seed script) | F-01, F-02 | shipped | merged to main |
 | M2 | Direct messaging | F-03 | shipped | merged to main |
-| M3 | Message actions | F-04 | todo | |
+| M3 | Message actions | F-04 | building | |
 | M4 | Group chats | F-05 | todo | |
 | M5 | Clubs | F-06, F-07, F-08, F-09 | todo | |
 | M6 | Announcements | F-10 | todo | |
