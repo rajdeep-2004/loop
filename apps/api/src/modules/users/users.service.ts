@@ -1,10 +1,12 @@
-import type { Me, OnboardingInput, PublicUser } from '@campus/shared';
+import type { Me, OnboardingInput, Page, PublicUser } from '@campus/shared';
 import { badRequest, notFound } from '../../lib/errors';
-import { isId } from '../../lib/db';
+import { isId, toId } from '../../lib/db';
+import { escapeRegex, toPage } from '../../lib/paging';
+import { isOnline } from '../../realtime/gateway';
 import { ProgramModel, SchoolModel } from '../university/university.models';
 import { PUBLIC_FILE_PREFIX } from '../uploads/uploads.service';
 import { UserModel, toNameWords } from './user.model';
-import { presentMe, presentUser } from './users.presenter';
+import { presentMe, presentUser, presentUsers } from './users.presenter';
 
 type ProfileChanges = {
   name?: string;
@@ -20,10 +22,10 @@ export async function getMe(userId: string): Promise<Me> {
   return presentMe(user);
 }
 
-export async function getUser(id: string): Promise<PublicUser> {
+export async function getUser(id: string): Promise<PublicUser & { online: boolean }> {
   const user = isId(id) ? await UserModel.findById(id).lean() : null;
   if (!user) throw notFound('User');
-  return presentUser(user);
+  return { ...(await presentUser(user)), online: isOnline(id) };
 }
 
 /** Attaches the student to the university structure. Every reference is checked against the database. */
@@ -66,4 +68,45 @@ export async function updateProfile(userId: string, changes: ProfileChanges): Pr
   const user = await UserModel.findByIdAndUpdate(userId, update, { returnDocument: 'after' }).lean();
   if (!user) throw notFound('User');
   return presentMe(user);
+}
+
+export type PeopleFilter = {
+  q?: string;
+  schoolId?: string;
+  programId?: string;
+  year?: number;
+  tag?: string;
+  cursor?: string;
+  limit: number;
+};
+
+/**
+ * People search. Text matches the start of any word of the name, or the start of
+ * the username ("raj" and "san" both find Rajdeep Sanyal). Both use indexes
+ * because the pattern is anchored. A tag matches a skill or an interest exactly.
+ */
+export async function searchPeople(userId: string, filter: PeopleFilter): Promise<Page<PublicUser>> {
+  const offset = filter.cursor ? Number(filter.cursor) : 0;
+  if (!Number.isInteger(offset) || offset < 0) throw badRequest('invalid_cursor', 'Invalid cursor');
+
+  const conditions: Record<string, unknown>[] = [{ _id: { $ne: toId(userId) } }, { onboarded: true }, { role: 'student' }];
+  const words = (filter.q ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    const prefix = new RegExp(`^${escapeRegex(words[0]!)}`);
+    conditions.push({ $or: [{ nameWords: prefix }, { username: prefix }] });
+  } else {
+    for (const word of words) conditions.push({ nameWords: new RegExp(`^${escapeRegex(word)}`) });
+  }
+  if (filter.schoolId) conditions.push({ schoolId: toId(filter.schoolId) });
+  if (filter.programId) conditions.push({ programId: toId(filter.programId) });
+  if (filter.year) conditions.push({ year: filter.year });
+  if (filter.tag) conditions.push({ $or: [{ skills: filter.tag }, { interests: filter.tag }] });
+
+  const rows = await UserModel.find({ $and: conditions })
+    .sort({ name: 1, _id: 1 })
+    .skip(offset)
+    .limit(filter.limit + 1)
+    .lean();
+  const page = toPage(rows, filter.limit, () => String(offset + filter.limit), (row) => row);
+  return { data: await presentUsers(page.data), nextCursor: page.nextCursor };
 }
