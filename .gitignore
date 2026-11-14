@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+.next/
+coverage/
+.gstack/
+/apps/api/uploads/
+.expo/
+*.log
+.DS_Store
+.test-uploads/
