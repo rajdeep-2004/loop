@@ -50,7 +50,10 @@ export type UserChip = {
 };
 
 export type Attachment = { url: string; name: string; mimeType: string; size: number };
-export type Reaction = { emoji: string; userIds: string[] };
+export type Reaction = { emoji: ReactionEmoji; userIds: string[] };
+
+/** Shown in place of a deleted message, in the bubble, in reply quotes and in the chat list. */
+export const DELETED_MESSAGE_TEXT = 'Message deleted';
 
 export type Message = {
   id: string;

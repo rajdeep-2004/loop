@@ -1,5 +1,5 @@
-import type { Attachment, Message, Page } from '@campus/shared';
-import { badRequest, isDuplicateKeyError, notFound } from '../../lib/errors';
+import { DELETED_MESSAGE_TEXT, type Attachment, type Message, type Page } from '@campus/shared';
+import { AppError, badRequest, isDuplicateKeyError, notFound } from '../../lib/errors';
 import { isId, toId } from '../../lib/db';
 import { toPage } from '../../lib/paging';
 import { emitToUsers } from '../../realtime/gateway';
@@ -18,10 +18,9 @@ export type NewMessage = {
   attachments: Attachment[];
 };
 
-/** What the chat list shows when the newest message was deleted. */
-export const DELETED_PREVIEW = 'Message deleted';
-
+/** The line the chat list shows for a message. */
 export function previewOf(message: MessageDoc): string {
+  if (message.deletedAt) return DELETED_MESSAGE_TEXT;
   if (message.body) return message.body.slice(0, PREVIEW_LENGTH);
   return message.type === 'image' ? 'Photo' : `File: ${message.attachments[0]?.name ?? 'attachment'}`;
 }
@@ -119,8 +118,9 @@ export async function listMessages(
 export async function requireMessage(userId: string, messageId: string): Promise<MessageDoc> {
   const message = isId(messageId) ? await MessageModel.findById(messageId).lean() : null;
   if (!message) throw notFound('Message');
-  await requireMember(String(message.conversationId), userId).catch(() => {
-    throw notFound('Message');
+  await requireMember(String(message.conversationId), userId).catch((error: unknown) => {
+    // Not a member: answer as if the message did not exist. Anything else (a database failure) stays an error.
+    throw error instanceof AppError && error.code === 'not_found' ? notFound('Message') : error;
   });
   return message;
 }

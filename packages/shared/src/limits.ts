@@ -9,6 +9,8 @@ export const LIMITS = {
   tagMax: 30,
   tagsMax: 12,
   messageMax: 4000,
+  /** How much of a message is shown when another message quotes it. */
+  replyPreviewMax: 120,
   groupNameMax: 60,
   descriptionMax: 500,
   clubTextMax: 1000,

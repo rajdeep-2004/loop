@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { LIMITS, REACTION_EMOJIS } from '@campus/shared';
+import { ConversationMemberModel, ConversationModel } from '../src/modules/conversations/conversation.models';
 import { MessageModel } from '../src/modules/messages/message.model';
 import { call, closeSockets, createUser, nextEvent, openDm, openSocket, send, useTestApp, type TestUser } from './helpers';
 
@@ -227,3 +228,78 @@ describe('reacting to a message', () => {
     expect((await unreact(outsider, message.id)).status).toBe(404);
   });
 });
+
+describe('message actions under retries, races and odd messages', () => {
+  it('never brings the text back when an edit and a delete arrive together', async () => {
+    const { a, b, dm } = await pair();
+    const message = await send(ctx.app, a, dm, 'original');
+    const [edited, removed] = await Promise.all([edit(a, message.id, 'changed'), remove(a, message.id)]);
+    expect([200, 409]).toContain(edited.status);
+    expect(removed.status).toBe(200);
+    expect((await MessageModel.findById(message.id).lean())?.body).toBe('');
+    // Whichever request finished last, the chat list must not show the text of a deleted message.
+    expect(await preview(b)).toBe('Message deleted');
+  });
+
+  it('repeats the live update and the preview fix when a delete is retried', async () => {
+    const { a, b, dm } = await pair();
+    const message = await send(ctx.app, a, dm, 'retry me');
+    await remove(a, message.id);
+    // Simulate a first attempt that saved the delete but failed before the preview was rewritten.
+    await ConversationModel.updateOne({ _id: dm }, { 'lastMessage.body': 'retry me' });
+    const socketB = await openSocket(ctx.port, b.token);
+    const updated = nextEvent(socketB, 'message:updated');
+    expect((await remove(a, message.id)).status).toBe(200);
+    expect(await updated).toMatchObject({ id: message.id, deleted: true });
+    expect(await preview(b)).toBe('Message deleted');
+  });
+
+  it('erases attachments and the edited mark when a message is deleted', async () => {
+    const { a, dm } = await pair();
+    const message = await send(ctx.app, a, dm, 'see file');
+    await edit(a, message.id, 'see the file');
+    await MessageModel.updateOne(
+      { _id: message.id },
+      { type: 'file', attachments: [{ url: '/files/x', name: 'notes.pdf', mimeType: 'application/pdf', size: 10 }] },
+    );
+    const res = await remove(a, message.id);
+    expect(res.body.data).toMatchObject({ deleted: true, edited: false, attachments: [] });
+    expect((await MessageModel.findById(message.id).lean())?.attachments).toEqual([]);
+  });
+
+  it('keeps an edited message editable, reactable and deletable', async () => {
+    const { a, b, dm } = await pair();
+    const message = await send(ctx.app, a, dm, 'v1');
+    await edit(a, message.id, 'v2');
+    expect((await edit(a, message.id, 'v3')).body.data).toMatchObject({ body: 'v3', edited: true });
+    expect((await react(b, message.id, THUMB)).body.data).toMatchObject({ body: 'v3', edited: true });
+    expect((await unreact(b, message.id)).body.data.reactions).toEqual([]);
+    expect((await remove(a, message.id)).body.data.deleted).toBe(true);
+    expect((await unreact(b, message.id)).status).toBe(409);
+  });
+
+  it('reacts to a message stored without a reactions list', async () => {
+    const { a, dm } = await pair();
+    const message = await send(ctx.app, a, dm, 'old data');
+    await MessageModel.collection.updateOne({ _id: (await MessageModel.findById(message.id))!._id }, { $unset: { reactions: '' } });
+    const res = await react(a, message.id, THUMB);
+    expect(res.status).toBe(200);
+    expect(res.body.data.reactions).toEqual([{ emoji: THUMB, userIds: [a.id] }]);
+  });
+
+  it('leaves the chat list preview alone when a thread reply is edited or deleted', async () => {
+    const a = await createUser(ctx.app);
+    const b = await createUser(ctx.app);
+    const group = await ConversationModel.create({ type: 'group', name: 'Hackathon' });
+    await ConversationMemberModel.create([
+      { conversationId: group._id, userId: a.id },
+      { conversationId: group._id, userId: b.id },
+    ]);
+    const root = await send(ctx.app, a, String(group._id), 'root message');
+    const reply = await send(ctx.app, b, String(group._id), 'in thread', { threadRootId: root.id });
+    expect((await edit(b, reply.id, 'in thread, fixed')).status).toBe(200);
+    expect((await remove(b, reply.id)).status).toBe(200);
+    expect(await preview(a)).toBe('root message');
+  });
+});
+

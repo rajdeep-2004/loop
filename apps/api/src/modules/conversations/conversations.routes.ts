@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { markReadInput, messagesQuery, pageQuery, sendMessageInput, startDmInput } from '@campus/shared';
+import { config } from '../../config';
 import { parse } from '../../lib/validate';
 import { requireAuth } from '../auth/guard';
 import { listMessages, sendMessage } from '../messages/messages.service';
@@ -28,7 +29,7 @@ export async function conversationsRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<IdParams>(
     '/conversations/:id/messages',
-    { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
+    { config: { rateLimit: config.messages.writeRateLimit } },
     async (request, reply) => {
       const message = await sendMessage(request.userId, request.params.id, parse(sendMessageInput, request.body));
       return reply.status(201).send({ data: message });

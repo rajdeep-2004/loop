@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { editMessageInput, reactInput } from '@campus/shared';
+import { config } from '../../config';
 import { parse } from '../../lib/validate';
 import { requireAuth } from '../auth/guard';
 import { clearReaction, deleteMessage, editMessage, setReaction } from './messageActions.service';
 
 type IdParams = { Params: { id: string } };
 
-/** Same budget as sending: generous for a person, tight for a script. */
-const WRITE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
+const WRITE_LIMIT = { config: { rateLimit: config.messages.writeRateLimit } };
 
 export async function messagesRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);

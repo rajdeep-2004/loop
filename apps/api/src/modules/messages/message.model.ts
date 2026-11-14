@@ -1,5 +1,5 @@
 import { Schema, model, type Types } from 'mongoose';
-import type { Attachment } from '@campus/shared';
+import type { Attachment, ReactionEmoji } from '@campus/shared';
 
 export interface MessageDoc {
   _id: Types.ObjectId;
@@ -12,7 +12,7 @@ export interface MessageDoc {
   replyToId: Types.ObjectId | null;
   threadRootId: Types.ObjectId | null;
   threadReplyCount: number;
-  reactions: { emoji: string; userIds: Types.ObjectId[] }[];
+  reactions: { emoji: ReactionEmoji; userIds: Types.ObjectId[] }[];
   editedAt: Date | null;
   deletedAt: Date | null;
   createdAt: Date;

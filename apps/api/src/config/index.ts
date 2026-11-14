@@ -28,5 +28,7 @@ export const config = {
     rateLimitMax: env.AUTH_RATE_LIMIT_MAX,
     rateLimitWindow: '1 minute',
   },
+  /** Budget for sending, editing, deleting and reacting, per client and route. Generous for a person, tight for a script. */
+  messages: { writeRateLimit: { max: 120, timeWindow: '1 minute' } },
   typing: { ttlMs: 5000 },
 } as const;

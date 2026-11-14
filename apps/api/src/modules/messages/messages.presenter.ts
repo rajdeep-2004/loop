@@ -1,8 +1,6 @@
-import type { Message } from '@campus/shared';
+import { LIMITS, type Message } from '@campus/shared';
 import { loadUserChips } from '../users/userChips';
 import { MessageModel, type MessageDoc } from './message.model';
-
-const REPLY_PREVIEW_LENGTH = 120;
 
 /** Turns message documents into the API shape. Senders and quoted messages are loaded once per batch. */
 export async function presentMessages(messages: MessageDoc[]): Promise<Message[]> {
@@ -28,7 +26,7 @@ export async function presentMessages(messages: MessageDoc[]): Promise<Message[]
       replyTo: quote
         ? {
             id: String(quote._id),
-            body: quote.deletedAt ? '' : (quote.body || quote.attachments[0]?.name || '').slice(0, REPLY_PREVIEW_LENGTH),
+            body: quote.deletedAt ? '' : (quote.body || quote.attachments[0]?.name || '').slice(0, LIMITS.replyPreviewMax),
             senderName: chips.get(String(quote.senderId))!.name,
             deleted: quote.deletedAt !== null,
           }
@@ -36,7 +34,7 @@ export async function presentMessages(messages: MessageDoc[]): Promise<Message[]
       threadRootId: message.threadRootId ? String(message.threadRootId) : null,
       threadReplyCount: message.threadReplyCount,
       reactions: deleted ? [] : message.reactions.map((r) => ({ emoji: r.emoji, userIds: r.userIds.map(String) })),
-      edited: message.editedAt !== null,
+      edited: !deleted && message.editedAt !== null,
       deleted,
       createdAt: message.createdAt.toISOString(),
     };
