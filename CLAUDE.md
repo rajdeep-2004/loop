@@ -1,44 +1,56 @@
-# <Project Name>
+# Campus (repo: loop)
 
-<!-- One or two sentences: what this is and who it's for. Details live in docs/prd.md. -->
+A university-native chat app for a capstone demo: students, clubs, group chats and targeted announcements, tied to the university's structure. Details live in docs/prd.md.
 
-Delivery setup: `docs/architecture.md` §0. Engineering standards and workflow: `~/.claude/CLAUDE.md`.
+Delivery setup: `docs/architecture.md` §0. Engineering standards and workflow: `~/.claude/CLAUDE.md`. Visual rules: `DESIGN.md`.
 
 ## Stack
-- Frontend: <e.g. Next.js (App Router), TypeScript, Tailwind>
-- Backend: <e.g. Node.js + Express, TypeScript, Zod>
-- Database: <e.g. MongoDB + Mongoose>
-- Other: <e.g. Redis, SSE, auth provider>
-- Testing: <e.g. Vitest (unit + integration), Supertest (API), Playwright (E2E)>
-- Infra: <match Delivery setup in docs/architecture.md>
-- Package manager: <npm | pnpm | bun>
+- Mobile: Expo SDK 58 (React Native 0.88), TypeScript, Expo Router, TanStack Query, Socket.IO client
+- Backend: Node 20 + Fastify 5, TypeScript, Zod 4, Socket.IO
+- Database: MongoDB 7 + Mongoose 9 (local `mongod`, no Docker)
+- Shared: `packages/shared` Zod schemas and types used by both apps
+- Testing: Vitest (API unit + integration against local MongoDB), Jest + React Native Testing Library (mobile)
+- Infra: none (local only). No Redis, no CI
+- Package manager: pnpm (workspace, `node-linker=hoisted`)
 
 ## Commands
 ```bash
-<pm> install              # install deps
-<pm> run dev              # start dev server(s)
-docker compose up         # only if Docker was chosen
-<pm> run lint             # lint + typecheck
-<pm> test                 # unit + integration tests
-<pm> run test:coverage    # only if a coverage target was chosen
-<pm> run test:e2e         # only if E2E was chosen
-<pm> run build            # production build
+pnpm install              # install deps
+pnpm seed                 # wipe the dev database and load the demo university
+pnpm dev:api              # start the API on :4000
+pnpm dev:mobile           # start Expo (scan the QR code with Expo Go)
+pnpm lint                 # eslint, all packages
+pnpm typecheck            # tsc, all packages
+pnpm test                 # API tests (needs mongod running) + mobile tests
 ```
+Demo logins after seeding: `rajdeep@campus.test`, `mira@campus.test`, `admin@campus.test`, password `campus123`.
 
 ## Codebase layout
 ```
-<fill from docs/architecture.md — top 2 levels only>
+apps/api/src/config        env parsing (only place that reads process.env)
+apps/api/src/lib           errors, validation, db, paging helpers
+apps/api/src/modules/<x>   routes -> service -> model, one folder per feature
+apps/api/src/realtime      Socket.IO gateway
+apps/api/scripts/seed      demo data
+apps/api/tests             integration tests
+apps/mobile/src/app        Expo Router screens (routes only)
+apps/mobile/src/features   feature code (hooks, components)
+apps/mobile/src/ui         design system (see DESIGN.md)
+apps/mobile/src/lib        api client, tokens, config
+packages/shared/src        Zod schemas, types, limits
 ```
 
 ## Docs
 Read at session start: `docs/prd.md` (milestones + status), `docs/architecture.md`, and the latest
-entries in `docs/decisions.md`. Backlog: `TODOS.md`. What shipped: `CHANGELOG.md`.
+entries in `docs/decisions.md`. Backlog: `TODOS.md`. Design: `DESIGN.md`.
 
 ## Project-specific rules
-<!-- Only rules that differ from or add to ~/.claude/CLAUDE.md. Keep this short. Examples:
-- All API input validated with Zod schemas in src/schemas/.
-- Never call the DB from route handlers; go through src/services/.
-- Env vars are documented in .env.example; never read process.env outside src/config/. -->
+- All API input is validated with the Zod schemas in `packages/shared`, via `parse()` in `src/lib/validate.ts`.
+- Route handlers never touch Mongoose models; they call services.
+- Services emit realtime events only through `src/realtime/gateway.ts`.
+- Mobile screens never hardcode colors, sizes or fonts; use `@/ui` tokens and components.
+- Expo changes fast: check `apps/mobile/AGENTS.md` and the versioned Expo docs before using an Expo API.
+- Mobile tests: `expo-router`, `expo-secure-store` and `expo-image` are mocked in `apps/mobile/jest.setup.ts`.
 
 ## Skill routing
 

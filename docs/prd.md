@@ -81,7 +81,7 @@ announcements are discoverable and addressable through that structure.
 ## 9. Milestones
 | ID | Milestone | Features | Status | PR |
 |---|---|---|---|---|
-| M1 | Foundation and identity (repo layout, design system, auth, onboarding, profile, image upload, seed script) | F-01, F-02 | todo | |
+| M1 | Foundation and identity (repo layout, design system, auth, onboarding, profile, image upload, seed script) | F-01, F-02 | shipped | merged to main |
 | M2 | Direct messaging | F-03 | todo | |
 | M3 | Message actions | F-04 | todo | |
 | M4 | Group chats | F-05 | todo | |

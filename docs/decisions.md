@@ -19,6 +19,7 @@ Rules:
 | D-003 | 2026-11-15 | Design | Neo-brutalist visual direction | Active |
 | D-004 | 2026-11-15 | Workflow | Unattended overnight build: phases merged to main without approval stops | Active |
 | D-005 | 2026-11-15 | M1 | Refresh tokens stored hashed and rotated | Active |
+| D-006 | 2026-11-15 | M1 | M1 build notes: workspace, name search field, upload checks, mobile test setup | Active |
 
 ---
 
@@ -198,3 +199,41 @@ Storing only a hash means a database leak does not leak usable tokens. Rotation 
 
 **Revisit if**
 Multiple devices per user need a "log out everywhere" button (add a delete-all-sessions endpoint).
+
+---
+
+### D-006 — M1 build notes: workspace, name search field, upload checks, mobile test setup
+- **Date:** 2026-11-15
+- **Step / milestone:** M1 — Foundation and identity
+- **Status:** Active
+- **Type:** tooling | data | edge-case
+
+**Context**
+M1 delivered the repo layout, the design system, signup, login, onboarding, profiles, image upload and the seed script. Several small choices were made on the way.
+
+**Decision**
+1. pnpm workspace with `node-linker=hoisted`. React Native's bundler (Metro) expects one flat `node_modules`; pnpm's default symlinked layout causes duplicate or unresolved packages.
+2. `packages/shared` is consumed as TypeScript source (no build step). The API runs through `tsx` and Metro compiles it for the app, so one edit is visible to both sides immediately.
+3. Users store `nameWords`, the lowercase words of the name, in an indexed array. A prefix search can then match the start of any word ("sharma" finds "Rajdeep Sharma"), which the spec review flagged as missing.
+4. Uploaded images are identified by their first bytes (magic numbers), not by the content type or filename the client sends. The stored name is a random UUID. A fake `.png` containing a script is rejected.
+5. Public images (avatars, banners) are served only to signed-in users, so the app sends the access token as a header when it loads an image (`RemoteImage`).
+6. The API URL defaults to the computer running the Expo dev server, port 4000, so a phone on the same Wi-Fi needs no configuration.
+7. Mobile lint runs `eslint .` directly. `expo lint` refuses to run on Node 20 (it asks for Node 22.13+), while the rest of Expo SDK 58 works on Node 20.
+8. Tabs have no icons. The tab bar is typographic (uppercase labels in bordered cells), which fits the brutalist direction and avoids an icon dependency.
+
+**Why**
+Each is the smallest choice that satisfies the engineering standards (validated input, no trust in the client, indexed queries) without adding infrastructure.
+
+**How it works**
+Tests run against a real local MongoDB database named `campus_test`. Each test file builds the Fastify app once and empties every collection before each test. Requests are sent with `fastify.inject`, which calls the server in-process. Mobile tests render components with React Native Testing Library; the API client is tested by replacing `fetch` with a scripted fake.
+
+**Files touched**
+- `pnpm-workspace.yaml`, `.npmrc`, `packages/shared/*`, `apps/api/*`, `apps/mobile/*`, `DESIGN.md`
+
+**Concepts worth learning**
+- Magic numbers: fixed byte sequences at the start of a file format (PNG starts with `89 50 4E 47`), used to detect the real type.
+- Single-flight refresh: when many requests fail with 401 at once, they all wait on one shared refresh call instead of each starting their own.
+- Route guard (`Stack.Protected`): Expo Router shows a group of screens only while a condition is true and redirects away when it turns false.
+
+**Revisit if**
+Node is upgraded to 22+ (switch the mobile lint script back to `expo lint`).
