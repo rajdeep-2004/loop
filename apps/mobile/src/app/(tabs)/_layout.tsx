@@ -1,26 +1,37 @@
 import { Tabs } from 'expo-router';
+import { useUnreadTotal } from '@/features/chat/hooks';
 import { TabBar } from '@/ui';
 
-const TAB_LABELS: Record<string, string> = { me: 'Me' };
+const TABS: { name: string; label: string }[] = [
+  { name: 'index', label: 'Chats' },
+  { name: 'me', label: 'Me' },
+];
 
 export default function TabsLayout() {
+  const unread = useUnreadTotal().data ?? 0;
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
       tabBar={({ state, navigateToTab }) => (
         <TabBar
-          items={state.routes
-            .filter((route) => TAB_LABELS[route.name])
-            .map((route) => ({
-              key: route.key,
-              label: TAB_LABELS[route.name]!,
-              active: state.routes[state.index]?.key === route.key,
-              onPress: () => navigateToTab(route.key),
-            }))}
+          items={TABS.flatMap((tab) => {
+            const route = state.routes.find((item) => item.name === tab.name);
+            if (!route) return [];
+            return [
+              {
+                key: route.key,
+                label: tab.label,
+                active: state.routes[state.index]?.key === route.key,
+                onPress: () => navigateToTab(route.key),
+                badge: tab.name === 'index' ? unread : undefined,
+              },
+            ];
+          })}
         />
       )}>
-      <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="me" />
+      {TABS.map((tab) => (
+        <Tabs.Screen key={tab.name} name={tab.name} />
+      ))}
     </Tabs>
   );
 }

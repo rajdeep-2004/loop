@@ -7,6 +7,7 @@ import { LIMITS } from '@campus/shared';
 import { config } from './config';
 import { AppError } from './lib/errors';
 import { authRoutes } from './modules/auth/auth.routes';
+import { conversationsRoutes } from './modules/conversations/conversations.routes';
 import { universityRoutes } from './modules/university/university.routes';
 import { uploadsRoutes } from './modules/uploads/uploads.routes';
 import { usersRoutes } from './modules/users/users.routes';
@@ -58,6 +59,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(usersRoutes);
       await api.register(universityRoutes);
       await api.register(uploadsRoutes);
+      await api.register(conversationsRoutes);
     },
     { prefix: API_PREFIX },
   );
