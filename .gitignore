@@ -7,3 +7,8 @@ build/
 .next/
 coverage/
 .gstack/
+uploads/
+.expo/
+*.log
+.DS_Store
+.test-uploads/
